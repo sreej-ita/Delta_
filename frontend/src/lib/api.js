@@ -1,5 +1,5 @@
 const BASE = "/api";
-
+ 
 async function handle(res) {
   if (!res.ok) {
     let detail = res.statusText;
@@ -11,14 +11,14 @@ async function handle(res) {
   }
   return res;
 }
-
+ 
 export const api = {
   async listSites() {
     const res = await fetch(`${BASE}/sites`);
     await handle(res);
     return res.json();
   },
-
+ 
   async analyze(payload) {
     const res = await fetch(`${BASE}/analyze`, {
       method: "POST",
@@ -28,7 +28,30 @@ export const api = {
     await handle(res);
     return res.json();
   },
-
+ 
+  /**
+   * Registers a brand-new project by name + coordinates. The backend
+   * generates an id and small default boundary around the point, then
+   * returns a SiteOption so the frontend can immediately re-fetch summaries.
+   */
+  async addProject({ name, latitude, longitude, areaHa, registryStandard, treesPlanted, species }) {
+    const res = await fetch(`${BASE}/sites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        latitude,
+        longitude,
+        area_ha: areaHa,
+        registry_standard: registryStandard,
+        trees_planted: treesPlanted,
+        species,
+      }),
+    });
+    await handle(res);
+    return res.json();
+  },
+ 
   async downloadReportPdf(payload) {
     const res = await fetch(`${BASE}/report/pdf`, {
       method: "POST",
@@ -41,7 +64,7 @@ export const api = {
     const match = disposition.match(/filename="(.+)"/);
     return { blob, filename: match ? match[1] : "report.pdf" };
   },
-
+ 
   /**
    * Aggregates one lightweight analysis per site so the project dashboard can
    * show a card (name, approximate location, area, status) without the user
@@ -89,10 +112,11 @@ export const api = {
     return summaries;
   },
 };
-
+ 
 function centroid(coords) {
   if (!coords || coords.length === 0) return [null, null];
   const lngs = coords.map((c) => c[0]);
   const lats = coords.map((c) => c[1]);
   return [lngs.reduce((a, b) => a + b, 0) / lngs.length, lats.reduce((a, b) => a + b, 0) / lats.length];
 }
+ 
