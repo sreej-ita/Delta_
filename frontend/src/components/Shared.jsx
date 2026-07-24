@@ -1,5 +1,5 @@
-import { Leaf } from "lucide-react";
-
+import { Leaf, Plus, X } from "lucide-react";
+ 
 export function MetricCard({ label, value, sub, accent = "emerald" }) {
   const accentColor = { emerald: "#10b981", blue: "#3b82f6", violet: "#8b5cf6", rose: "#f43f5e" }[accent];
   return (
@@ -12,7 +12,7 @@ export function MetricCard({ label, value, sub, accent = "emerald" }) {
     </div>
   );
 }
-
+ 
 export function InfoBox({ children }) {
   return (
     <div className="mb-5 rounded-lg border border-blue/20 bg-blue/10 px-4 py-3 text-sm text-blue-200">
@@ -20,17 +20,17 @@ export function InfoBox({ children }) {
     </div>
   );
 }
-
+ 
 export function SectionTitle({ children }) {
   return <h3 className="mb-3 font-display text-base font-semibold text-ink">{children}</h3>;
 }
-
+ 
 const STATUS_BADGE_CLASS = {
   Ready: "badge-ready",
   "Needs Review": "badge-review",
   "Not Ready": "badge-notready",
 };
-
+ 
 export function StatusBadge({ status }) {
   const cls = STATUS_BADGE_CLASS[status] || "badge-review";
   return (
@@ -39,7 +39,7 @@ export function StatusBadge({ status }) {
     </span>
   );
 }
-
+ 
 /**
  * Brand mark. Looks for /logo.png (drop your logo file into frontend/public/logo.png)
  * and falls back to a small leaf glyph so the layout never breaks if it's missing.
@@ -72,3 +72,52 @@ export function Logo({ size = 32, showWordmark = true, dark = false }) {
     </div>
   );
 }
+ 
+/**
+ * Generic centered modal overlay. Reusable for any future popup forms.
+ */
+export function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="glass-card w-full max-w-md rounded-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          {title && <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>}
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full p-1 text-forestmuted transition hover:bg-forest/5 hover:text-forest"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+ 
+/**
+ * "+" tile shown alongside project cards on the landing page, opens the
+ * Add Project modal when clicked.
+ */
+export function AddProjectCard({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="earth-card flex min-h-[152px] flex-col items-center justify-center gap-2 border-2 border-dashed border-forest/20 p-5 text-forestmuted transition hover:border-emerald/50 hover:text-emerald"
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-full bg-emerald/10">
+        <Plus size={20} className="text-emerald" />
+      </span>
+      <span className="text-sm font-semibold">Add Project</span>
+    </button>
+  );
+}
+ 
