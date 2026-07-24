@@ -1,35 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
+ 
 body {
   background: #faf7f0;
   min-height: 100vh;
 }
-
+ 
 .glass-card {
   background: #ffffff;
   border: 1px solid rgba(31, 51, 39, 0.08);
   border-radius: 14px;
   box-shadow: 0 6px 18px 0 rgba(31, 51, 39, 0.08);
 }
-
+ 
 .glass-card:hover.metric-hover {
   transform: translateY(-2px);
   border-color: rgba(16, 185, 129, 0.35);
 }
-
+ 
 .title-gradient {
   background: linear-gradient(135deg, #10b981 30%, #3b82f6 90%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-
+ 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.4); }
-
+ 
 .maplibregl-popup-content {
   background: #0d1527 !important;
   color: #e2e8f0 !important;
@@ -37,20 +38,21 @@ body {
   border-radius: 10px !important;
 }
 .maplibregl-popup-tip { border-top-color: #0d1527 !important; }
-
+ 
 /* ============ Landing page / earthy theme (light, photo hero) ============ */
-
+ 
 .earth-root {
   background: #faf7f0;
   min-height: 100vh;
 }
-
+ 
 .earth-title-gradient {
   background: linear-gradient(135deg, #ffffff 20%, #f3d9bd 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-
+ 
 .earth-card {
   background: #ffffff;
   border: 1px solid rgba(31, 51, 39, 0.08);
@@ -58,21 +60,21 @@ body {
   box-shadow: 0 6px 18px 0 rgba(31, 51, 39, 0.08);
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.35s ease, box-shadow 0.35s ease;
 }
-
+ 
 .earth-card:hover {
   transform: translateY(-6px) scale(1.015);
   border-color: rgba(193, 104, 47, 0.4);
   box-shadow: 0 16px 32px 0 rgba(31, 51, 39, 0.14);
 }
-
+ 
 .earth-card:active {
   transform: translateY(-2px) scale(0.99);
 }
-
+ 
 .badge-ready { background: #e7f0e3; color: #3d6b31; border: 1px solid #bcdcae; }
 .badge-review { background: #fbe9dc; color: #a3521e; border: 1px solid #f0c6a0; }
 .badge-notready { background: #fbe1e5; color: #a3283b; border: 1px solid #f3aebb; }
-
+ 
 /* Hero — full-bleed photo with a dark scrim so white text stays legible
    regardless of the photo. Drop your image at frontend/public/hero-mangrove.jpg
    (any photo works — the gradient overlay guarantees contrast either way). */
@@ -88,15 +90,7 @@ body {
   background-position: center, center, center;
   background-repeat: no-repeat, no-repeat, no-repeat;
 }
-
-.hero-scene::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 70%, #faf7f0 100%);
-  pointer-events: none;
-}
-
+ 
 .hero-copy > * {
   opacity: 0;
   animation: fadeUp 0.9s ease-out forwards;
@@ -105,7 +99,7 @@ body {
 .hero-copy > *:nth-child(1) { animation-delay: 0.15s; }
 .hero-copy > *:nth-child(2) { animation-delay: 0.4s; }
 .hero-copy > *:nth-child(3) { animation-delay: 0.65s; }
-
+ 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
@@ -114,7 +108,7 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
+ 
 .scroll-cue {
   animation: bob 2.2s ease-in-out infinite;
 }
@@ -122,7 +116,7 @@ body {
   0%, 100% { transform: translateY(0); opacity: 0.6; }
   50% { transform: translateY(8px); opacity: 1; }
 }
-
+ 
 .reveal-on-scroll {
   opacity: 0;
   transform: translateY(24px);
@@ -132,7 +126,7 @@ body {
   opacity: 1;
   transform: translateY(0);
 }
-
+ 
 @media (prefers-reduced-motion: reduce) {
   .hero-copy > *, .scroll-cue, .reveal-on-scroll {
     animation: none !important;
@@ -141,3 +135,4 @@ body {
     transform: none !important;
   }
 }
+ 
