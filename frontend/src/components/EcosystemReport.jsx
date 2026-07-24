@@ -2,23 +2,23 @@ import { useState } from "react";
 import { Download, CheckCircle2, AlertTriangle, XCircle, Info } from "lucide-react";
 import { MetricCard, SectionTitle } from "./Shared.jsx";
 import { api } from "../lib/api.js";
-
+ 
 const STATUS_STYLE = {
   Ready: { icon: CheckCircle2, color: "emerald" },
   "Needs Review": { icon: AlertTriangle, color: "amber" },
   "Not Ready": { icon: XCircle, color: "rose" },
 };
-
+ 
 const ITEM_ICON = { pass: CheckCircle2, warning: AlertTriangle, fail: XCircle };
 const ITEM_COLOR = { pass: "#10b981", warning: "#f59e0b", fail: "#f43f5e" };
-
+ 
 export default function EcosystemReport({ projectName, analysis, carbon, projectMeta, checklist, readiness }) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
-
+ 
   const statusInfo = STATUS_STYLE[readiness.status] || STATUS_STYLE["Needs Review"];
   const StatusIcon = statusInfo.icon;
-
+ 
   async function handleDownload() {
     setDownloading(true);
     setError("");
@@ -41,7 +41,7 @@ export default function EcosystemReport({ projectName, analysis, carbon, project
       setDownloading(false);
     }
   }
-
+ 
   return (
     <div>
       <SectionTitle>Ecosystem Status Summary</SectionTitle>
@@ -54,7 +54,7 @@ export default function EcosystemReport({ projectName, analysis, carbon, project
         This report is intended as verification support and does not constitute official carbon credit
         accreditation.
       </div>
-
+ 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="glass-card flex items-center gap-3 px-5 py-4">
           <StatusIcon size={22} color={`var(--${statusInfo.color})`} className="shrink-0" style={{ color: "#10b981" }} />
@@ -70,22 +70,22 @@ export default function EcosystemReport({ projectName, analysis, carbon, project
           accent="violet"
         />
       </div>
-
+ 
       <p className="mt-3 rounded-lg border border-black/10 bg-black/[0.05] px-4 py-3 text-sm text-ink">
         {readiness.summary_note}
       </p>
       <p className="mt-2 text-xs text-muted">
         Net tCO2e (post-buffer/deduction) will be added once accredited deduction methodology is applied.
       </p>
-
+ 
       <div className="my-6 h-px bg-black/[0.08]" />
-
+ 
       <SectionTitle>Verification Readiness Checklist</SectionTitle>
       <p className="mb-4 text-xs text-muted">
         Each item below is derived directly from the monitoring evidence collected for this project. This
         checklist supports — but does not replace — formal verification.
       </p>
-
+ 
       <div className="space-y-3">
         {checklist.map((entry, i) => {
           const Icon = ITEM_ICON[entry.status] || AlertTriangle;
@@ -100,9 +100,9 @@ export default function EcosystemReport({ projectName, analysis, carbon, project
           );
         })}
       </div>
-
+ 
       <div className="my-6 h-px bg-black/[0.08]" />
-
+ 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
           <SectionTitle>Included in PDF Evidence Pack</SectionTitle>
@@ -122,7 +122,7 @@ export default function EcosystemReport({ projectName, analysis, carbon, project
             ))}
           </ul>
         </div>
-
+ 
         <div>
           <SectionTitle>Export Report</SectionTitle>
           <button
@@ -139,3 +139,4 @@ export default function EcosystemReport({ projectName, analysis, carbon, project
     </div>
   );
 }
+ 
