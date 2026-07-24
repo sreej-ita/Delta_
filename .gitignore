@@ -1,0 +1,51 @@
+# ==========================
+# Python / backend
+# ==========================
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+
+# Python Cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Backend runtime / generated data
+backend/gee_cache/
+backend/users.db
+
+# Environment secrets
+.env
+.env.local
+.env.*.local
+
+# Streamlit private configuration & secrets (legacy, harmless to keep)
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# ==========================
+# Node / frontend
+# ==========================
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ==========================
+# IDE / OS
+# ==========================
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================
+# Logs
+# ==========================
+
+*.log
