@@ -1,19 +1,22 @@
 """
 main.py — Blue Carbon Ecosystem Monitor API
-
+ 
 Rebuilds the original Streamlit app as a stateless REST API. All the actual
 science/ML logic (gee_service, biomass_ml, analytics, pdf_report) is reused
 unchanged from the Streamlit version — only the presentation layer moved to
 React, and per-request state replaces st.session_state.
 """
+import math
+import re
+import uuid
 from datetime import datetime
-
+ 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
-
+ 
 from gee_service import GEEService, validate_mangrove_habitat, locate_real_mangrove_center
 from biomass_ml import BiomassModel
 from pdf_report import generate_pdf_report
@@ -25,9 +28,9 @@ from analytics import (
     get_credit_readiness_status,
 )
 from auth import router as auth_router, get_current_user
-
+ 
 app = FastAPI(title="Blue Carbon Ecosystem Monitor API")
-
+ 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten to your frontend origin in production
@@ -35,19 +38,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+ 
 app.include_router(auth_router)
-
+ 
 # Long-lived, in-process singletons (mirrors the old st.session_state services)
 gee_live = GEEService(use_sandbox=False)
 gee_sandbox = GEEService(use_sandbox=True)
 biomass_model = BiomassModel()
-
+ 
 # ----------------------------------------------------
 # CONSTANTS & LOCATION TEMPLATES (unchanged from mainapp.py)
 # ----------------------------------------------------
 BAHA_MOU_REFERENCE = (22.1652, 88.8079)
-
+ 
 SUNDARBANS_BLOCKS = {
     "Sagar": (21.6528, 88.0753),
     "Namkhana": (21.7699, 88.2315),
@@ -61,8 +64,16 @@ SUNDARBANS_BLOCKS = {
     "Sandeshkhali I": (22.3600, 88.9000),
     "Sandeshkhali II": (22.3600, 88.9000),
 }
-
-
+ 
+# Reserved ids that a user-added project must never collide with
+RESERVED_SITE_IDS = {"baha_mou", "sundari", "custom"}
+ 
+# In-memory store for projects added via the "Add Project" UI.
+# NOTE: this resets on server restart. If you need it to survive restarts,
+# swap this dict for a table in users.db (or a small JSON file on disk).
+CUSTOM_PROJECTS: dict[str, dict] = {}
+ 
+ 
 def block_to_polygon(lat, lng, half_width_deg=0.04):
     return [
         [lng - half_width_deg, lat - half_width_deg],
@@ -71,16 +82,43 @@ def block_to_polygon(lat, lng, half_width_deg=0.04):
         [lng - half_width_deg, lat + half_width_deg],
         [lng - half_width_deg, lat - half_width_deg],
     ]
-
-
-def resolve_coords(reference_lat, reference_lng, gee_service):
+ 
+ 
+def hectares_to_polygon(lat, lng, area_ha):
+    """
+    Builds a square boundary box centered on (lat, lng) whose area matches
+    area_ha as closely as possible. Longitude degrees are compressed by
+    cos(latitude) since a degree of longitude covers less ground distance
+    the further you are from the equator.
+    """
+    area_km2 = area_ha * 0.01  # 1 hectare = 0.01 km^2
+    side_km = math.sqrt(area_km2)
+    half_km = side_km / 2
+ 
+    half_lat_deg = half_km / 111.32
+    lng_compression = max(math.cos(math.radians(lat)), 1e-6)
+    half_lng_deg = half_km / (111.32 * lng_compression)
+ 
+    return [
+        [lng - half_lng_deg, lat - half_lat_deg],
+        [lng + half_lng_deg, lat - half_lat_deg],
+        [lng + half_lng_deg, lat + half_lat_deg],
+        [lng - half_lng_deg, lat + half_lat_deg],
+        [lng - half_lng_deg, lat - half_lat_deg],
+    ]
+ 
+ 
+def resolve_coords(reference_lat, reference_lng, gee_service, area_ha=None):
     relocated = None
     if gee_service.is_live():
         relocated = locate_real_mangrove_center(reference_lat, reference_lng)
     final_lat, final_lng = relocated if relocated else (reference_lat, reference_lng)
+ 
+    if area_ha:
+        return hectares_to_polygon(final_lat, final_lng, area_ha)
     return block_to_polygon(final_lat, final_lng)
-
-
+ 
+ 
 def default_meta_for(project_type, block_name=None):
     if project_type == "baha_mou":
         return {
@@ -99,6 +137,14 @@ def default_meta_for(project_type, block_name=None):
             "data_confidence": "verified",
             "block_name": block_name,
         }
+    if project_type == "user_added":
+        return {
+            "type": "user_added",
+            "standard": "N/A (Evaluation Zone)",
+            "trees": "N/A",
+            "species": "N/A",
+            "data_confidence": "approximate",
+        }
     return {
         "type": "generic",
         "standard": "N/A (Evaluation Zone)",
@@ -106,8 +152,23 @@ def default_meta_for(project_type, block_name=None):
         "species": "N/A",
         "data_confidence": "unverified",
     }
-
-
+ 
+ 
+def slugify(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
+    return slug or "project"
+ 
+ 
+def make_unique_site_id(name: str) -> str:
+    base = slugify(name)
+    candidate = base
+    taken = RESERVED_SITE_IDS | set(SUNDARBANS_BLOCKS.keys()) | set(CUSTOM_PROJECTS.keys())
+    if candidate not in taken:
+        return candidate
+    # append a short unique suffix on collision
+    return f"{base}-{uuid.uuid4().hex[:6]}"
+ 
+ 
 # ----------------------------------------------------
 # Schemas
 # ----------------------------------------------------
@@ -115,41 +176,82 @@ class SiteOption(BaseModel):
     id: str
     label: str
     blocks: Optional[List[str]] = None
-
-
+ 
+ 
 class AnalyzeRequest(BaseModel):
-    site_id: Optional[str] = None          # "baha_mou" | "sundari" | "custom"
+    site_id: Optional[str] = None          # "baha_mou" | "sundari" | "custom" | <user-added id>
     block_name: Optional[str] = None       # required when site_id == "sundari"
     custom_coords: Optional[list] = None   # [[lng,lat], ...] when site_id == "custom"
     use_sandbox: bool = False
     force_refresh: bool = False
-
-
+ 
+ 
 class ReportRequest(BaseModel):
     project_name: str
     analysis: dict
     carbon: dict
     project_meta: dict
-
-
+ 
+ 
+class NewProjectRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    area_ha: float = Field(..., gt=0, le=1_000_000)
+    registry_standard: str = Field(..., min_length=1, max_length=200)
+    trees_planted: str = Field(..., min_length=1, max_length=100)
+    species: str = Field(..., min_length=1, max_length=300)
+ 
+ 
 # ----------------------------------------------------
 # Routes
 # ----------------------------------------------------
 @app.get("/api/health")
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
-
-
+ 
+ 
 @app.get("/api/sites", response_model=List[SiteOption])
 def list_sites():
-    return [
+    sites = [
         SiteOption(id="baha_mou", label="Baha' Mou Mangrove Restoration Project, Sundarbans"),
         SiteOption(id="sundari", label="Sundari Mangrove Restoration Project, Kakdwip",
                     blocks=list(SUNDARBANS_BLOCKS.keys())),
-        SiteOption(id="custom", label="Draw custom area on map"),
     ]
-
-
+    # user-added projects, most recently added first
+    for project in reversed(list(CUSTOM_PROJECTS.values())):
+        sites.append(SiteOption(id=project["id"], label=project["name"]))
+ 
+    sites.append(SiteOption(id="custom", label="Draw custom area on map"))
+    return sites
+ 
+ 
+@app.post("/api/sites", response_model=SiteOption)
+def add_site(payload: NewProjectRequest):
+    """
+    Registers a new project from a name + lat/lng pair (the "Add Project"
+    popup on the landing page). Stores it in-memory and immediately makes it
+    resolvable by /api/analyze under its generated id.
+    """
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "Project name is required.")
+ 
+    site_id = make_unique_site_id(name)
+    CUSTOM_PROJECTS[site_id] = {
+        "id": site_id,
+        "name": name,
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
+        "area_ha": payload.area_ha,
+        "registry_standard": payload.registry_standard.strip(),
+        "trees_planted": payload.trees_planted.strip(),
+        "species": payload.species.strip(),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    return SiteOption(id=site_id, label=name)
+ 
+ 
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest):
     """
@@ -159,7 +261,7 @@ def analyze(req: AnalyzeRequest):
     coords/site it wants analyzed each time.
     """
     gee_service = gee_sandbox if req.use_sandbox else gee_live
-
+ 
     if req.site_id == "sundari":
         if not req.block_name or req.block_name not in SUNDARBANS_BLOCKS:
             raise HTTPException(400, "Valid block_name is required for the Sundari project.")
@@ -167,28 +269,43 @@ def analyze(req: AnalyzeRequest):
         coords = resolve_coords(ref_lat, ref_lng, gee_service)
         project_name = f"Sundari Project - {req.block_name}"
         project_meta = default_meta_for("sundari", req.block_name)
-
+ 
     elif req.site_id == "custom":
         if not req.custom_coords:
             raise HTTPException(400, "custom_coords is required for a custom site.")
         coords = req.custom_coords
         project_name = "Custom Area Site"
         project_meta = default_meta_for("generic")
-
+ 
+    elif req.site_id in CUSTOM_PROJECTS:
+        project = CUSTOM_PROJECTS[req.site_id]
+        coords = resolve_coords(
+            project["latitude"], project["longitude"], gee_service,
+            area_ha=project.get("area_ha"),
+        )
+        project_name = project["name"]
+        project_meta = {
+            "type": "user_added",
+            "standard": project.get("registry_standard") or "N/A (Evaluation Zone)",
+            "trees": project.get("trees_planted") or "N/A",
+            "species": project.get("species") or "N/A",
+            "data_confidence": "approximate",
+        }
+ 
     else:  # baha_mou / default
         coords = resolve_coords(*BAHA_MOU_REFERENCE, gee_service)
         project_name = "Baha' Mou Project"
         project_meta = default_meta_for("baha_mou")
-
+ 
     analysis = gee_service.analyze_area(coords, project_meta, force_refresh=req.force_refresh)
-
+ 
     is_valid, reasons = validate_mangrove_habitat(
         analysis.get("current_ndvi"),
         analysis.get("current_ndwi"),
         analysis.get("mean_elevation_m"),
         mangrove_fraction=analysis.get("mangrove_coverage_fraction"),
     )
-
+ 
     if not is_valid:
         return {
             "project_name": project_name,
@@ -200,7 +317,7 @@ def analyze(req: AnalyzeRequest):
             "analysis": analysis,
             "carbon": None,
         }
-
+ 
     carbon = biomass_model.predict_biomass_and_carbon(
         ndvi=analysis["current_ndvi"],
         ndwi=analysis["current_ndwi"],
@@ -208,12 +325,12 @@ def analyze(req: AnalyzeRequest):
         real_agbd_per_ha=analysis.get("gedi_measured_agb_per_ha"),
         canopy_height_m=analysis.get("gedi_canopy_height_m", 15.4),
     )
-
+ 
     ndvi_ndwi_trend = prepare_ndvi_ndwi_trend_chart(analysis)
     carbon_trend = prepare_carbon_trend_chart(analysis, carbon)
     checklist = get_verification_checklist(analysis, carbon, project_meta, is_live=gee_service.is_live())
     readiness = get_credit_readiness_status(checklist, carbon)
-
+ 
     return {
         "project_name": project_name,
         "project_meta": project_meta,
@@ -228,8 +345,8 @@ def analyze(req: AnalyzeRequest):
         "checklist": checklist,
         "readiness": readiness,
     }
-
-
+ 
+ 
 @app.post("/api/report/pdf")
 def report_pdf(req: ReportRequest):
     checklist = get_verification_checklist(
@@ -242,9 +359,10 @@ def report_pdf(req: ReportRequest):
     proj_clean = req.project_name.replace(" ", "_").replace("-", "_")
     date_str = datetime.now().strftime("%Y%m%d")
     filename = f"MRV_Evidence_Pack_{proj_clean}_{date_str}.pdf"
-
+ 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+ 
