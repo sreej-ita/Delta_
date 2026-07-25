@@ -52,6 +52,55 @@ export const api = {
     return res.json();
   },
  
+  /** Fetches the full editable record for a user-added project (used to pre-fill the Edit modal). */
+  async getProject(id) {
+    const res = await fetch(`${BASE}/sites/${id}`);
+    await handle(res);
+    return res.json();
+  },
+ 
+  /** Edits an existing user-added project in place; the project's id/URL stays the same. */
+  async updateProject(id, { name, latitude, longitude, areaHa, registryStandard, treesPlanted, species }) {
+    const res = await fetch(`${BASE}/sites/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        latitude,
+        longitude,
+        area_ha: areaHa,
+        registry_standard: registryStandard,
+        trees_planted: treesPlanted,
+        species,
+      }),
+    });
+    await handle(res);
+    return res.json();
+  },
+ 
+  /** Edits Baha' Mou / Sundari's descriptive fields only (name, registry info) — their location logic isn't user-editable. */
+  async updateProjectMetadata(id, { name, registryStandard, treesPlanted, species }) {
+    const res = await fetch(`${BASE}/sites/${id}/metadata`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        registry_standard: registryStandard,
+        trees_planted: treesPlanted,
+        species,
+      }),
+    });
+    await handle(res);
+    return res.json();
+  },
+ 
+  /** Permanently deletes a user-added project. */
+  async deleteProject(id) {
+    const res = await fetch(`${BASE}/sites/${id}`, { method: "DELETE" });
+    await handle(res);
+    return res.json();
+  },
+ 
   async downloadReportPdf(payload) {
     const res = await fetch(`${BASE}/report/pdf`, {
       method: "POST",
@@ -96,6 +145,7 @@ export const api = {
             areaHa: data.analysis?.area_ha ?? null,
             status: data.readiness?.status ?? "Needs Review",
             valid: data.habitat_valid !== false,
+            editable: site.editable ?? false,
           };
         } catch {
           return {
@@ -105,6 +155,7 @@ export const api = {
             areaHa: null,
             status: "Needs Review",
             valid: true,
+            editable: site.editable ?? false,
           };
         }
       })
@@ -119,4 +170,3 @@ function centroid(coords) {
   const lats = coords.map((c) => c[1]);
   return [lngs.reduce((a, b) => a + b, 0) / lngs.length, lats.reduce((a, b) => a + b, 0) / lats.length];
 }
- 
