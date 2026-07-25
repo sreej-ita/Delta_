@@ -1,5 +1,5 @@
 const BASE = "/api";
- 
+
 async function handle(res) {
   if (!res.ok) {
     let detail = res.statusText;
@@ -11,14 +11,14 @@ async function handle(res) {
   }
   return res;
 }
- 
+
 export const api = {
   async listSites() {
     const res = await fetch(`${BASE}/sites`);
     await handle(res);
     return res.json();
   },
- 
+
   async analyze(payload) {
     const res = await fetch(`${BASE}/analyze`, {
       method: "POST",
@@ -28,7 +28,7 @@ export const api = {
     await handle(res);
     return res.json();
   },
- 
+
   /**
    * Registers a brand-new project by name + coordinates. The backend
    * generates an id and small default boundary around the point, then
@@ -51,14 +51,14 @@ export const api = {
     await handle(res);
     return res.json();
   },
- 
+
   /** Fetches the full editable record for a user-added project (used to pre-fill the Edit modal). */
   async getProject(id) {
     const res = await fetch(`${BASE}/sites/${id}`);
     await handle(res);
     return res.json();
   },
- 
+
   /** Edits an existing user-added project in place; the project's id/URL stays the same. */
   async updateProject(id, { name, latitude, longitude, areaHa, registryStandard, treesPlanted, species }) {
     const res = await fetch(`${BASE}/sites/${id}`, {
@@ -77,7 +77,7 @@ export const api = {
     await handle(res);
     return res.json();
   },
- 
+
   /** Edits Baha' Mou / Sundari's descriptive fields only (name, registry info) — their location logic isn't user-editable. */
   async updateProjectMetadata(id, { name, registryStandard, treesPlanted, species }) {
     const res = await fetch(`${BASE}/sites/${id}/metadata`, {
@@ -93,14 +93,14 @@ export const api = {
     await handle(res);
     return res.json();
   },
- 
+
   /** Permanently deletes a user-added project. */
   async deleteProject(id) {
     const res = await fetch(`${BASE}/sites/${id}`, { method: "DELETE" });
     await handle(res);
     return res.json();
   },
- 
+
   async downloadReportPdf(payload) {
     const res = await fetch(`${BASE}/report/pdf`, {
       method: "POST",
@@ -113,7 +113,7 @@ export const api = {
     const match = disposition.match(/filename="(.+)"/);
     return { blob, filename: match ? match[1] : "report.pdf" };
   },
- 
+
   /**
    * Aggregates one lightweight analysis per site so the project dashboard can
    * show a card (name, approximate location, area, status) without the user
@@ -163,10 +163,73 @@ export const api = {
     return summaries;
   },
 };
- 
+
 function centroid(coords) {
   if (!coords || coords.length === 0) return [null, null];
   const lngs = coords.map((c) => c[0]);
   const lats = coords.map((c) => c[1]);
   return [lngs.reduce((a, b) => a + b, 0) / lngs.length, lats.reduce((a, b) => a + b, 0) / lats.length];
+}
+
+/**
+ * Maps a full /api/analyze response into the compact, structured object the
+ * chatbot uses to ground its answers (see chatbot_service.py's
+ * _format_project_context). Call this whenever a project page's analysis
+ * result changes, and publish it via useSetProjectChatContext() from
+ * ProjectChatContext.jsx — e.g. inside ProjectDetail.jsx:
+ *
+ *   const setProjectChatContext = useSetProjectChatContext();
+ *   useEffect(() => {
+ *     setProjectChatContext(result ? buildChatProjectContext(result) : null);
+ *     return () => setProjectChatContext(null);
+ *   }, [result]);
+ *
+ * Only includes real fields this app's backend actually produces — no
+ * placeholder/invented figures.
+ */
+export function buildChatProjectContext(result) {
+  if (!result) return null;
+
+  const { project_name, project_meta, analysis, carbon, readiness, checklist, habitat_valid, is_live } = result;
+
+  const alerts = (analysis?.deforestation_alerts || []).map((a) => ({
+    date: a.date ?? null,
+    severity: a.severity ?? null,
+    area_loss_sqm: a.area_loss_sqm ?? null,
+  }));
+
+  const dataQualityFlags = [];
+  if (project_meta?.data_confidence) {
+    dataQualityFlags.push(`boundary confidence: ${project_meta.data_confidence}`);
+  }
+  if (carbon?.data_source && carbon.data_source !== "gedi_measured") {
+    dataQualityFlags.push(`biomass source: ${carbon.data_source}`);
+  }
+  (checklist || [])
+    .filter((c) => c.status && c.status !== "pass")
+    .forEach((c) => dataQualityFlags.push(`${c.status}: ${c.item}`));
+
+  return {
+    project_name: project_name ?? null,
+    location: analysis?.location_name ?? null,
+    area_ha: analysis?.area_ha ?? null,
+    habitat_valid: habitat_valid ?? null,
+    is_live_data: is_live ?? null,
+    current_ndvi: analysis?.current_ndvi ?? null,
+    current_ndwi: analysis?.current_ndwi ?? null,
+    current_et_stress: analysis?.current_et_stress ?? null,
+    total_carbon_tc: carbon?.total_carbon_tc ?? null,
+    carbon_tco2e: carbon?.total_co2e_tons ?? null,
+    co2e_per_ha: carbon?.co2e_per_ha ?? null,
+    annual_sequestration_tco2e: carbon?.annual_sequestration_tco2e ?? null,
+    biomass_data_source: carbon?.data_source ?? null,
+    readiness_status: readiness?.status ?? null,
+    readiness_score_pct: readiness?.score_pct ?? null,
+    gross_co2e: readiness?.gross_co2e ?? null,
+    registry_standard: project_meta?.standard ?? null,
+    trees_planted: project_meta?.trees ?? null,
+    species: project_meta?.species ?? null,
+    alerts,
+    data_quality_flags: dataQualityFlags,
+  };
 }
