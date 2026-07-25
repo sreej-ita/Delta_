@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Map, BarChart3, Activity, ShieldAlert, FileText, ArrowLeft } from "lucide-react";
-import { api } from "../lib/api.js";
+import { api, buildChatProjectContext } from "../lib/api.js";
+import { useSetProjectChatContext } from "../lib/ProjectChatContext.jsx";
 import Sidebar from "../components/Sidebar.jsx";
 import MonitoringMap from "../components/MonitoringMap.jsx";
 import CarbonAnalytics from "../components/CarbonAnalytics.jsx";
@@ -21,6 +22,7 @@ const TABS = [
 export default function ProjectDetail() {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const setProjectChatContext = useSetProjectChatContext();
 
   const [sites, setSites] = useState([]);
   const [siteId, setSiteId] = useState(projectId);
@@ -75,6 +77,16 @@ export default function ProjectDetail() {
     runAnalysis(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId, blockName, useSandbox, customCoords]);
+
+  // Publish the current project's metrics to the floating chatbot whenever
+  // a new analysis result comes in, and clear it on unmount / while a new
+  // one is loading — so the assistant never answers using stale project
+  // data from a page the user has since navigated away from.
+  useEffect(() => {
+    setProjectChatContext(result ? buildChatProjectContext(result) : null);
+    return () => setProjectChatContext(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
 
   function handleDrawPolygon(coords) {
     setCustomCoords(coords);
