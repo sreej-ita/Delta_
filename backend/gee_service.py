@@ -7,8 +7,6 @@ import shapely.geometry
 import json
 import os
 
-from gemini_service import explain_alert
-
 CACHE_DIR = "gee_cache"
 
 
@@ -344,34 +342,6 @@ class GEEService:
         hasher = hashlib.md5(coord_str.encode('utf-8'))
         return int(hasher.hexdigest()[:8], 16)
 
-    # ------------------------------------------------------------------
-    # Gemini "why this matters" explanations for deforestation alerts.
-    # Attached ONCE, on whichever alert list actually ends up being served
-    # to the frontend (real or simulated) — never on intermediate/discarded
-    # alert lists — so we don't burn Gemini calls explaining data nobody
-    # sees. Safe to call even if GEMINI_API_KEY is unset: explain_alert()
-    # itself falls back to a rule-based sentence in that case.
-    # ------------------------------------------------------------------
-    def _attach_alert_explanations(self, result, project_meta=None):
-        alerts = result.get('deforestation_alerts') or []
-        if not alerts:
-            return result
-
-        project_meta = project_meta or {}
-        project_name = project_meta.get('name') or result.get('location_name', 'Unnamed Project')
-
-        for alert in alerts:
-            try:
-                explanation = explain_alert(project_name, alert, result)
-                alert['why_this_matters'] = explanation.get('explanation')
-                alert['explanation_source'] = explanation.get('source')
-            except Exception as e:
-                print(f"Alert explanation attach failed: {e}")
-                alert['why_this_matters'] = None
-                alert['explanation_source'] = 'error'
-
-        return result
-
     def analyze_area(self, coordinates, project_meta=None, force_refresh=False):
         """
         Performs geospatial analysis on a polygon.
@@ -397,12 +367,11 @@ class GEEService:
         if self.is_live():
             return self._analyze_gee_live(coordinates, area_ha, project_meta, force_refresh=force_refresh)
         else:
-            result = self._analyze_sandbox(coordinates, area_ha, project_meta)
-            return self._attach_alert_explanations(result, project_meta)
+            return self._analyze_sandbox(coordinates, area_ha, project_meta)
 
     def _analyze_gee_live(self, coordinates, area_ha, project_meta, force_refresh=False):
         """Real Google Earth Engine queries mapping Sentinel-2, Landsat, SRTM, GEDI, and MODIS."""
-        if not force_refresh:
+        if not force_refresh :
             cached = load_cached_analysis(coordinates)
             if cached is not None:
                 cached['is_cached'] = True
@@ -539,11 +508,7 @@ class GEEService:
             # Fetch remaining time-series arrays deterministically using sandbox
             # templates (2-year ET trend remains simulated pending a real
             # historical ET archive integration; all current-state values and
-            # the 5-year NDVI trend below are real). NOTE: this borrowed
-            # sandbox_data['deforestation_alerts'] gets overwritten below with
-            # real_alerts (or discarded on failure) — so we deliberately do
-            # NOT attach Gemini explanations inside _analyze_sandbox itself,
-            # only after the final alert list is settled a few lines down.
+            # the 5-year NDVI trend below are real).
             sandbox_data = self._analyze_sandbox(coordinates, area_ha, project_meta)
 
             # Override with real current-state values
@@ -564,12 +529,6 @@ class GEEService:
             else:
                 sandbox_data['deforestation_detection_method'] = "simulated (real detection failed)"
 
-            # Attach Gemini "why this matters" explanations to the FINAL
-            # alert list only, then cache it — so repeat requests for this
-            # polygon reuse the cached explanations instead of re-calling
-            # Gemini every time.
-            sandbox_data = self._attach_alert_explanations(sandbox_data, project_meta)
-
             sandbox_data['is_cached'] = False
             save_cached_analysis(coordinates, sandbox_data)
 
@@ -577,10 +536,6 @@ class GEEService:
 
         except Exception as e:
             print(f"GEE live error: {e}. Switching to simulation.")
-            result = self._analyze_sandbox(coordinates, area_ha, project_meta)
-            result = self._attach_alert_explanations(result, project_meta)
-            result['is_cached'] = False
-            return result
 
     def _analyze_sandbox(self, coordinates, area_ha, project_meta):
         """Simulates biophysical indices matching specific Baha' Mou and Sundari data details."""
