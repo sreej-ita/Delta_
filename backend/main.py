@@ -517,6 +517,15 @@ def analyze(req: AnalyzeRequest):
         project_name = builtin_label("baha_mou")
         project_meta = builtin_meta("baha_mou", default_meta_for("baha_mou"))
 
+    # NEW: gee_service._attach_alert_explanations() (called inside
+    # analyze_area below) reads project_meta["name"] to tell Gemini which
+    # project a deforestation alert belongs to, falling back to the raw
+    # location_name if it's absent. project_meta never carried the display
+    # name before, so we merge it in here rather than inside gee_service —
+    # keeps gee_service generic and this endpoint the single source of
+    # truth for "what is this project called".
+    project_meta = {**project_meta, "name": project_name}
+
     analysis = gee_service.analyze_area(coords, project_meta, force_refresh=req.force_refresh)
 
     is_valid, reasons = validate_mangrove_habitat(
