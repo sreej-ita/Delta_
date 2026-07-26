@@ -1,6 +1,6 @@
 # Delta — Blue Carbon Ecosystem Monitoring
 
-Delta is an MRV (Measurement, Reporting, Verification) dashboard for mangrove / blue-carbon restoration projects in the Sundarbans, West Bengal, India. It combines satellite remote sensing (Sentinel-2, SRTM, MODIS, NASA GEDI) and machine learning to estimate carbon stocks, monitor forest health, and produce audit-ready evidence for carbon-credit verification.
+Delta is an MRV (Measurement, Reporting, Verification) dashboard for blue-carbon restoration projects. It combines satellite remote sensing (Sentinel-2, SRTM, MODIS, NASA GEDI) and machine learning to estimate carbon stocks, monitor forest health, and produce audit-ready evidence for carbon-credit verification.
 
 The app is a React (Vite) frontend backed by a FastAPI REST API. The backend is stateless per request — every `/api/analyze` call resolves coordinates, queries satellite data, runs the ML model, and returns a complete result, with no server-side session state.
 
