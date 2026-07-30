@@ -102,7 +102,6 @@ export function Modal({ open, onClose, title, children }) {
     </div>
   );
 }
- 
 /**
  * "+" tile shown alongside project cards on the landing page, opens the
  * Add Project modal when clicked.
