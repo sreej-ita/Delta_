@@ -3,10 +3,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 import shapely.geometry
-
 import json
 import os
-
 from gemini_service import explain_alert
 
 CACHE_DIR = "gee_cache"
