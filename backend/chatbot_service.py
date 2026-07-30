@@ -1,22 +1,3 @@
-"""
-chatbot_service.py — Gemini-powered support chatbot for the Delta dashboard.
-
-Answers questions about this platform (what it does, how to use it) and,
-when the user is viewing a specific project, about THAT project — grounded
-in a structured context object (metrics, alerts, readiness, data-quality
-flags) passed in from the frontend rather than invented by the model.
-Anything unrelated to either gets the exact reply "irrelevant question" —
-no elaboration, no partial answer.
-
-Greetings/small talk ("hi", "hi my name is...", "I have a few questions")
-are intercepted deterministically BEFORE any Gemini call, so they always
-get a friendly reply regardless of whether the Gemini connection is up.
-
-If GEMINI_API_KEY is missing or a call fails, a rule-based fallback takes
-over: it can answer common metric questions directly from project_context
-(no LLM needed), and only falls back to a generic "ask the dashboard"
-message for things it can't look up directly.
-"""
 import json
 import os
 import re
