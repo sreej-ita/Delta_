@@ -6,6 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 REAL_MODEL_PATH = 'mangrove_biomass_model.pkl'
 
 
+
 class BiomassModel:
     def __init__(self):
         self.model, self.model_source = self._load_or_train_model()
