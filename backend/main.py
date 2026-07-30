@@ -22,6 +22,7 @@ from typing import Optional, List
 from gee_service import GEEService, validate_mangrove_habitat, locate_real_mangrove_center
 from biomass_ml import BiomassModel
 from pdf_report import generate_pdf_report
+from chatbot_service import answer_question as chatbot_answer
 from analytics import (
     prepare_ndvi_ndwi_trend_chart,
     prepare_carbon_trend_chart,
@@ -291,6 +292,17 @@ class ReportRequest(BaseModel):
     analysis: dict
     carbon: dict
     project_meta: dict
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str = Field(..., min_length=1, max_length=2000)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: Optional[List[ChatMessage]] = None
+    project_context: Optional[dict] = None  # structured metrics/alerts/readiness for the project on screen, if any
 
 
 class NewProjectRequest(BaseModel):
@@ -574,6 +586,22 @@ def analyze(req: AnalyzeRequest):
         "checklist": checklist,
         "readiness": readiness,
     }
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest):
+    """
+    Powers the floating chatbot widget (visible on every page except the
+    landing page). Intentionally NOT behind get_current_user — the widget
+    also appears on the Login/Signup pages, before a user has a token.
+    Only answers questions about this platform / mangrove-carbon domain
+    (or, when project_context is supplied, the project currently on
+    screen); anything else comes back as the literal string "irrelevant
+    question" (see chatbot_service.py).
+    """
+    history = [h.dict() for h in req.history] if req.history else []
+    result = chatbot_answer(req.message, history=history, project_context=req.project_context)
+    return result
 
 
 @app.post("/api/report/pdf")
