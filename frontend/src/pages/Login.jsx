@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Sprout, LogIn } from "lucide-react";
 import { useAuth } from "../lib/auth.jsx";
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
