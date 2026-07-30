@@ -184,6 +184,5 @@ def main():
     joblib.dump(gbr, MODEL_OUTPUT_PATH)
     print("Done! Model trained and saved.")
 
-
 if __name__ == "__main__":
     main()
