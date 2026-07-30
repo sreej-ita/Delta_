@@ -3,7 +3,6 @@ import Landing from "./pages/Landing.jsx";
 import ProjectDetail from "./pages/ProjectDetail.jsx";
 import Chatbot from "./components/Chatbot.jsx";
 import { ProjectChatProvider } from "./lib/ProjectChatContext.jsx";
-
 export default function App() {
   const location = useLocation();
 
