@@ -3,7 +3,6 @@ import {
   ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell,
 } from "recharts";
 import { MetricCard, SectionTitle } from "./Shared.jsx";
-
 const PIE_COLORS = ["#10b981", "#3b82f6", "#8b5cf6"];
 
 export default function CarbonAnalytics({ analysis, carbon, ndviTrend, carbonTrend }) {
