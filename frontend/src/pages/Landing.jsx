@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Radar, FileCheck2, BellRing, MapPin, ChevronDown, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Radar, FileCheck2, BellRing, MapPin, ChevronDown, MoreVertical, Pencil, Trash2, X } from "lucide-react";
 import { api } from "../lib/api.js";
 import { Logo, Modal, AddProjectCard } from "../components/Shared.jsx";
-
 const FEATURES = [
   {
     icon: Radar,
@@ -22,27 +21,36 @@ const FEATURES = [
   },
 ];
 
-// Converts degrees/minutes/hemisphere into signed decimal degrees.
-// e.g. (21, 50, "N") -> 21.8333..., (88, 30, "W") -> -88.5
-function dmToDecimal(deg, min, dir) {
-  const d = parseFloat(deg);
-  const m = parseFloat(min);
-  if (Number.isNaN(d) || Number.isNaN(m)) return NaN;
-  const magnitude = d + m / 60;
-  return dir === "S" || dir === "W" ? -magnitude : magnitude;
+// Each entry's body is a bit more detailed than a one-line teaser, since
+// only one section is shown at a time now — there's room to say more.
+const BANNER_SECTIONS = [
+  {
+    title: "Features",
+    body: "Continuous satellite monitoring tracks canopy health and carbon stock year-round, with no manual fieldwork required. Every project gets verification-ready evidence packs built around recognized MRV checklists, plus early deforestation alerts that flag canopy loss before it threatens a project's integrity. Live and simulated (sandbox) data modes let you explore the platform freely before connecting real satellite feeds.",
+  },
+  {
+    title: "How It Works",
+    body: "It starts with a project boundary — either drawn directly on the map or entered as coordinates and an area. From there, satellite data (vegetation indices, elevation, canopy height, and biomass signals) is pulled for that exact area and run through a machine learning model trained to estimate carbon stock and vegetation health. The platform continuously re-checks that boundary over time, flagging any canopy loss it detects. Everything the model produces — carbon estimates, health metrics, and a verification readiness checklist — rolls up into a single exportable PDF evidence pack, so the numbers behind every hectare are traceable back to their source.",
+  },
+  {
+    title: "About Us",
+    body: "We built Delta to make ecosystem restoration verifiable, not just reported. Too many restoration claims rely on numbers no one outside the project can check. Our goal is to close that gap — giving developers, verifiers, and funders a shared, satellite-grounded view of what's actually happening on the ground, so trust in restoration data doesn't have to be taken on faith.",
+  },
+];
+
+// ---- Degrees/Minutes/Direction <-> decimal degrees helpers ----
+// The backend and all coordinate math still work in plain decimal degrees;
+// this conversion only happens at the UI boundary (display + form submit).
+function decimalToDM(decimalValue) {
+  const abs = Math.abs(decimalValue);
+  const degrees = Math.floor(abs);
+  const minutes = Math.round((abs - degrees) * 60 * 100) / 100; // 2 decimal places of precision
+  return { degrees, minutes };
 }
 
-// Converts a signed decimal degree value into { deg, min, dir } for
-// prefilling the degree/minute/direction fields when editing a project.
-function decimalToDm(value, positiveDir, negativeDir) {
-  if (value == null || Number.isNaN(value)) return { deg: "", min: "", dir: positiveDir };
-  const dir = value < 0 ? negativeDir : positiveDir;
-  const abs = Math.abs(value);
-  const deg = Math.floor(abs);
-  const min = (abs - deg) * 60;
-  // Round minutes to a reasonable precision to avoid float noise (e.g. 49.999999)
-  const minRounded = Math.round(min * 1000) / 1000;
-  return { deg: String(deg), min: String(minRounded), dir };
+function dmToDecimal(degrees, minutes, negative) {
+  const decimal = degrees + minutes / 60;
+  return negative ? -decimal : decimal;
 }
 
 function useRevealOnScroll() {
@@ -130,9 +138,6 @@ function CardSkeleton() {
   return <div className="earth-card h-[152px] animate-pulse bg-forest/[0.04]" />;
 }
 
-// Latitude/longitude are collected as degrees + minutes + hemisphere
-// (e.g. 21° 50' N), matching the requested input style, then converted to
-// decimal degrees right before being sent to the API.
 const EMPTY_FORM = {
   name: "",
   latDeg: "",
@@ -153,6 +158,11 @@ export default function Landing() {
   const [error, setError] = useState("");
   const cardsRef = useRef(null);
 
+  // Tracks WHICH banner section is showing — null means the banner is
+  // closed. Only one section renders at a time, matching whichever nav
+  // link was clicked, instead of always showing all three.
+  const [activeSection, setActiveSection] = useState(null);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState("");
@@ -162,6 +172,8 @@ export default function Landing() {
 
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+
+  const activeBannerContent = BANNER_SECTIONS.find((s) => s.title === activeSection) || null;
 
   function loadProjects() {
     return api
@@ -200,16 +212,31 @@ export default function Landing() {
     setError("");
     try {
       const detail = await api.getProject(project.id);
-      const latParts = decimalToDm(detail.latitude, "N", "S");
-      const lngParts = decimalToDm(detail.longitude, "E", "W");
+
+      let latDeg = "", latMin = "", latDir = "N";
+      if (detail.latitude != null) {
+        const dm = decimalToDM(detail.latitude);
+        latDeg = String(dm.degrees);
+        latMin = String(dm.minutes);
+        latDir = detail.latitude < 0 ? "S" : "N";
+      }
+
+      let lngDeg = "", lngMin = "", lngDir = "E";
+      if (detail.longitude != null) {
+        const dm = decimalToDM(detail.longitude);
+        lngDeg = String(dm.degrees);
+        lngMin = String(dm.minutes);
+        lngDir = detail.longitude < 0 ? "W" : "E";
+      }
+
       setForm({
         name: detail.name,
-        latDeg: latParts.deg,
-        latMin: latParts.min,
-        latDir: latParts.dir,
-        lngDeg: lngParts.deg,
-        lngMin: lngParts.min,
-        lngDir: lngParts.dir,
+        latDeg,
+        latMin,
+        latDir,
+        lngDeg,
+        lngMin,
+        lngDir,
         area: detail.area_ha != null ? String(detail.area_ha) : "",
         registryStandard: detail.registry_standard,
         treesPlanted: detail.trees_planted,
@@ -280,33 +307,29 @@ export default function Landing() {
       return;
     }
 
-    const latDegNum = parseFloat(form.latDeg);
-    const latMinNum = parseFloat(form.latMin);
-    const lngDegNum = parseFloat(form.lngDeg);
-    const lngMinNum = parseFloat(form.lngMin);
+    const latDeg = parseFloat(form.latDeg);
+    const latMin = parseFloat(form.latMin);
+    const lngDeg = parseFloat(form.lngDeg);
+    const lngMin = parseFloat(form.lngMin);
 
-    if (Number.isNaN(latDegNum) || latDegNum < 0 || latDegNum > 90) {
+    if (Number.isNaN(latDeg) || latDeg < 0 || latDeg > 90) {
       return setFormError("Enter valid latitude degrees (0 to 90).");
     }
-    if (Number.isNaN(latMinNum) || latMinNum < 0 || latMinNum >= 60) {
-      return setFormError("Enter valid latitude minutes (0 to 59).");
+    if (Number.isNaN(latMin) || latMin < 0 || latMin >= 60) {
+      return setFormError("Enter valid latitude minutes (0 to 59.99).");
     }
-    if (Number.isNaN(lngDegNum) || lngDegNum < 0 || lngDegNum > 180) {
+    if (Number.isNaN(lngDeg) || lngDeg < 0 || lngDeg > 180) {
       return setFormError("Enter valid longitude degrees (0 to 180).");
     }
-    if (Number.isNaN(lngMinNum) || lngMinNum < 0 || lngMinNum >= 60) {
-      return setFormError("Enter valid longitude minutes (0 to 59).");
+    if (Number.isNaN(lngMin) || lngMin < 0 || lngMin >= 60) {
+      return setFormError("Enter valid longitude minutes (0 to 59.99).");
     }
 
-    const lat = dmToDecimal(form.latDeg, form.latMin, form.latDir);
-    const lng = dmToDecimal(form.lngDeg, form.lngMin, form.lngDir);
+    const lat = dmToDecimal(latDeg, latMin, form.latDir === "S");
+    const lng = dmToDecimal(lngDeg, lngMin, form.lngDir === "W");
 
-    if (Number.isNaN(lat) || lat < -90 || lat > 90) {
-      return setFormError("Latitude works out to an invalid value.");
-    }
-    if (Number.isNaN(lng) || lng < -180 || lng > 180) {
-      return setFormError("Longitude works out to an invalid value.");
-    }
+    if (lat < -90 || lat > 90) return setFormError("Latitude is out of range.");
+    if (lng < -180 || lng > 180) return setFormError("Longitude is out of range.");
 
     const area = parseFloat(form.area);
     if (Number.isNaN(area) || area <= 0) {
@@ -334,12 +357,67 @@ export default function Landing() {
     }
   }
 
+  const showLocationFields = !(editingId && editingKind === "builtin");
+
   return (
     <div className="earth-root">
+      {/* ---------- Dropdown info banner — shows only the clicked section ---------- */}
+      {activeBannerContent && (
+        <div className="fixed inset-0 z-40" onClick={() => setActiveSection(null)} />
+      )}
+      <div
+        className={
+          "fixed inset-x-0 top-0 z-50 transition-transform duration-500 ease-out " +
+          (activeBannerContent ? "translate-y-0" : "-translate-y-full")
+        }
+        style={{
+          backgroundImage: "linear-gradient(to bottom, #faf7f0 0%, #faf7f0 65%, rgba(250,247,240,0) 100%)",
+        }}
+      >
+        <div className="mx-auto max-w-3xl px-6 pb-20 pt-8 sm:px-10">
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => setActiveSection(null)}
+              className="flex items-center gap-1 text-xs font-medium text-forestmuted transition hover:text-forest"
+            >
+              <X size={14} />
+              Close
+            </button>
+          </div>
+          {activeBannerContent && (
+            <div>
+              <p className="mb-2 font-display text-lg font-semibold text-forest">{activeBannerContent.title}</p>
+              <p className="text-sm leading-relaxed text-forestmuted">{activeBannerContent.body}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ---------- Hero ---------- */}
       <section className="hero-scene flex flex-col items-center justify-center px-6 text-center">
         <div className="absolute left-6 top-6 z-10">
           <Logo dark size={44} />
+        </div>
+
+        <div className="absolute right-6 top-6 z-10 flex items-center gap-5">
+          <button
+            onClick={() => setActiveSection("Features")}
+            className="text-xs font-medium text-white/85 transition hover:text-white"
+          >
+            Features
+          </button>
+          <button
+            onClick={() => setActiveSection("How It Works")}
+            className="text-xs font-medium text-white/85 transition hover:text-white"
+          >
+            How It Works
+          </button>
+          <button
+            onClick={() => setActiveSection("About Us")}
+            className="text-xs font-medium text-white/85 transition hover:text-white"
+          >
+            About Us
+          </button>
         </div>
 
         <div className="hero-copy relative z-10 flex max-w-2xl flex-col items-center gap-6">
@@ -412,87 +490,83 @@ export default function Landing() {
             />
           </div>
 
-          {editingId && editingKind === "builtin" && (
+          {!showLocationFields && (
             <div className="rounded-lg border border-blue/20 bg-blue/10 px-3 py-2 text-xs text-blue-900">
               Location is managed separately for this project and isn't editable here — only the details below.
             </div>
           )}
 
-          {!(editingId && editingKind === "builtin") && (
+          {showLocationFields && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                {/* ---- Latitude: degrees / minutes / N-S ---- */}
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-forestmuted">Latitude</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      max="90"
-                      value={form.latDeg}
-                      onChange={(e) => setForm((f) => ({ ...f, latDeg: e.target.value }))}
-                      placeholder="21"
-                      className="w-full min-w-0 rounded-lg border border-forest/15 bg-white px-2 py-2 text-sm text-ink outline-none focus:border-emerald"
-                    />
-                    <span className="text-sm text-forestmuted">°</span>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      max="59"
-                      value={form.latMin}
-                      onChange={(e) => setForm((f) => ({ ...f, latMin: e.target.value }))}
-                      placeholder="50"
-                      className="w-full min-w-0 rounded-lg border border-forest/15 bg-white px-2 py-2 text-sm text-ink outline-none focus:border-emerald"
-                    />
-                    <span className="text-sm text-forestmuted">'</span>
-                    <select
-                      value={form.latDir}
-                      onChange={(e) => setForm((f) => ({ ...f, latDir: e.target.value }))}
-                      className="rounded-lg border border-forest/15 bg-white px-1.5 py-2 text-sm text-ink outline-none focus:border-emerald"
-                    >
-                      <option value="N">N</option>
-                      <option value="S">S</option>
-                    </select>
-                  </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-forestmuted">
+                  Latitude <span className="font-normal text-forestmuted/70">(Degrees, Minutes, N/S)</span>
+                </label>
+                <div className="grid grid-cols-[1fr_1fr_74px] gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="90"
+                    value={form.latDeg}
+                    onChange={(e) => setForm((f) => ({ ...f, latDeg: e.target.value }))}
+                    placeholder="Deg (e.g. 21)"
+                    className="w-full rounded-lg border border-forest/15 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-emerald"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="59.99"
+                    value={form.latMin}
+                    onChange={(e) => setForm((f) => ({ ...f, latMin: e.target.value }))}
+                    placeholder="Min (e.g. 50)"
+                    className="w-full rounded-lg border border-forest/15 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-emerald"
+                  />
+                  <select
+                    value={form.latDir}
+                    onChange={(e) => setForm((f) => ({ ...f, latDir: e.target.value }))}
+                    className="w-full rounded-lg border border-forest/15 bg-white px-2 py-2 text-sm text-ink outline-none focus:border-emerald"
+                  >
+                    <option value="N">N</option>
+                    <option value="S">S</option>
+                  </select>
                 </div>
+              </div>
 
-                {/* ---- Longitude: degrees / minutes / E-W ---- */}
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-forestmuted">Longitude</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      max="180"
-                      value={form.lngDeg}
-                      onChange={(e) => setForm((f) => ({ ...f, lngDeg: e.target.value }))}
-                      placeholder="88"
-                      className="w-full min-w-0 rounded-lg border border-forest/15 bg-white px-2 py-2 text-sm text-ink outline-none focus:border-emerald"
-                    />
-                    <span className="text-sm text-forestmuted">°</span>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      max="59"
-                      value={form.lngMin}
-                      onChange={(e) => setForm((f) => ({ ...f, lngMin: e.target.value }))}
-                      placeholder="30"
-                      className="w-full min-w-0 rounded-lg border border-forest/15 bg-white px-2 py-2 text-sm text-ink outline-none focus:border-emerald"
-                    />
-                    <span className="text-sm text-forestmuted">'</span>
-                    <select
-                      value={form.lngDir}
-                      onChange={(e) => setForm((f) => ({ ...f, lngDir: e.target.value }))}
-                      className="rounded-lg border border-forest/15 bg-white px-1.5 py-2 text-sm text-ink outline-none focus:border-emerald"
-                    >
-                      <option value="E">E</option>
-                      <option value="W">W</option>
-                    </select>
-                  </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-forestmuted">
+                  Longitude <span className="font-normal text-forestmuted/70">(Degrees, Minutes, E/W)</span>
+                </label>
+                <div className="grid grid-cols-[1fr_1fr_74px] gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="180"
+                    value={form.lngDeg}
+                    onChange={(e) => setForm((f) => ({ ...f, lngDeg: e.target.value }))}
+                    placeholder="Deg (e.g. 88)"
+                    className="w-full rounded-lg border border-forest/15 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-emerald"
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    max="59.99"
+                    value={form.lngMin}
+                    onChange={(e) => setForm((f) => ({ ...f, lngMin: e.target.value }))}
+                    placeholder="Min (e.g. 48)"
+                    className="w-full rounded-lg border border-forest/15 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-emerald"
+                  />
+                  <select
+                    value={form.lngDir}
+                    onChange={(e) => setForm((f) => ({ ...f, lngDir: e.target.value }))}
+                    className="w-full rounded-lg border border-forest/15 bg-white px-2 py-2 text-sm text-ink outline-none focus:border-emerald"
+                  >
+                    <option value="E">E</option>
+                    <option value="W">W</option>
+                  </select>
                 </div>
               </div>
 
