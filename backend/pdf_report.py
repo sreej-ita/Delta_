@@ -245,9 +245,9 @@ def generate_pdf_report(project_name, analysis_data, carbon_data, project_meta=N
  
     pdf.ln(6)
  
-    # ======================================================
+ 
     # SECTION 4: CHECKLIST FINDINGS
-    # ======================================================
+ 
     pdf.add_page()
     pdf.section_title('4. Pre-Verification Checklist Findings')
  
