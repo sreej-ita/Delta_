@@ -5,11 +5,6 @@ import { useProjectChatContext } from "../lib/ProjectChatContext.jsx";
 const ICON_SRC = "/mangrove-chatbot-icon.jpg";
 const REFUSAL_TEXT = "irrelevant question";
 
-// Inline styles for anything that carries color/opacity — this project's
-// tailwind.config.js defines its own custom color tokens instead of
-// extending Tailwind's defaults, so semantic classes like `bg-emerald-950`
-// can silently fail to exist and render as transparent. Inline styles are
-// guaranteed to apply regardless of what the Tailwind config defines.
 const COLORS = {
   panelBg: "#ffffff",
   border: "#d7e5dd",
