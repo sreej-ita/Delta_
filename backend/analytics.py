@@ -1,27 +1,9 @@
-"""
-analytics.py
-
-Holds derived-metric logic that isn't raw GEE fetching (gee_service.py) or
-raw biomass modeling (biomass_ml.py):
-  - Verification readiness checklist (pre-verification evidence summary)
-  - Chart data preparation (5-year baseline vs. current monitoring)
-
-Kept separate from mainapp.py so UI/layout changes don't require touching
-this logic, and so this logic stays testable independent of Streamlit.
-
-Wording throughout intentionally avoids implying formal certification —
-this platform produces an INDICATIVE, evidence-based readiness assessment,
-not an accredited verification. See DISCLAIMER_TEXT below.
-"""
-
 DISCLAIMER_TEXT = (
     "This is an indicative, remote-sensing-based pre-verification assessment. "
     "It is not a certified or approved verification. Formal carbon credit "
     "verification requires review by an accredited verification body under "
     "an established methodology (e.g. VCS, Gold Standard)."
 )
-
-
 def get_verification_checklist(analysis, carbon, project_meta, is_live):
     """
     Builds a short, evidence-tied checklist summarizing how ready this
