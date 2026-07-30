@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 
+
 /**
  * Flat satellite monitoring map (Esri World Imagery + place-name labels).
  * The project boundary is drawn as a highlighted outline + fill on top of
