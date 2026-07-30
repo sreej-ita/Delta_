@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
-
 const SEVERITY_COLOR = { High: "#f43f5e", Moderate: "#f59e0b" };
 
 function AlertsMap({ alerts }) {
