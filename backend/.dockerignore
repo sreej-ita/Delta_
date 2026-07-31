@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+venv/
+.venv/
+gee_cache/
+.env
+.git
+*.db
+gee-service-account.json
