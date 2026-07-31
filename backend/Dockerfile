@@ -11,5 +11,8 @@ COPY . .
 
 EXPOSE 8000
 
-# main.py must expose a FastAPI instance named `app`
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# main.py must expose a FastAPI instance named `app`.
+# Uses $PORT if the platform provides one (e.g. Render sets this at runtime),
+# otherwise falls back to 8000 for local Docker Compose. Shell form (not the
+# usual JSON-array CMD) is required here so the env var actually expands.
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
