@@ -325,10 +325,23 @@ class GEEService:
         if not GEE_AVAILABLE:
             return False
         try:
-            # Try default initialization
-            ee.Initialize(project='delta-carbon-project')
-            print("Google Earth Engine connected successfully.")
-            return True
+            service_account_email = os.environ.get("GEE_SERVICE_ACCOUNT_EMAIL")
+            service_account_key_path = os.environ.get("GEE_SERVICE_ACCOUNT_KEY_PATH")
+
+            if service_account_email and service_account_key_path:
+            # Production / deployed path: authenticate as the service account
+                credentials = ee.ServiceAccountCredentials(
+                    service_account_email,
+                    service_account_key_path
+                )
+                ee.Initialize(credentials, project='delta-carbon-project')
+                print("Google Earth Engine connected successfully (service account).")
+                return True
+            else:
+                # Local dev fallback: your original personal-auth path
+                ee.Initialize(project='delta-carbon-project')
+                print("Google Earth Engine connected successfully (personal auth).")
+                return True
         except Exception as e:
             print(f"Standard GEE initialization failed: {e}. Falling back to Sandbox Mode.")
             return False
